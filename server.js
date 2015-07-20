@@ -10,7 +10,10 @@ var express = require('express'),
   session = require('express-session');
 
 // connect to mongodb
-mongoose.connect('mongodb://localhost/project1');
+mongoose.connect(
+  process.env.MONGOLAB_URI ||
+  process.env.MONGOHQ_URL ||
+  'mongodb://localhost/project1');
 
 // set view engine for server-side templating
 app.set('view engine', 'ejs');
@@ -217,9 +220,5 @@ app.delete('/api/posts/:id', function(req, res) {
 //**POSTS END**
 
 // listen on port 3000
-app.listen(3000, function () {
-  console.log('server started on locahost:3000');
-});
-
-
+app.listen(process.env.PORT || 3000);
 
