@@ -56,9 +56,21 @@ UserSchema.methods.checkPassword = function (password) {
   return bcrypt.compareSync(password, this.passwordDigest);
 };
 
+//post schema
+
+var PostSchema = new Schema({
+  author: String,
+  text: String
+});
+
+var Post = mongoose.model('Post', PostSchema);
+
+module.exports = Post;
 
 // define user model
 var User = mongoose.model('User', UserSchema);
+
+
 
 // export user model
 module.exports = User;
