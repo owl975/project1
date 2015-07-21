@@ -3,10 +3,12 @@
 // require express framework and additional modules
 var express = require('express'),
   app = express(),
-  ejs = require('ejs'),
   bodyParser = require('body-parser'),
+  _ = require('underscore'),
+  cors = require('cors'),
   mongoose = require('mongoose'),
   User = require('./models/user');
+  Post = require('./models/user');
   session = require('express-session');
 
 // connect to mongodb
@@ -15,11 +17,13 @@ mongoose.connect(
   process.env.MONGOHQ_URL ||
   'mongodb://localhost/project1');
 
-// set view engine for server-side templating
-app.set('view engine', 'ejs');
+app.use(express.static(__dirname));
 
-// middleware
-app.use(bodyParser.urlencoded({extended: true}));
+var db = require("./models/user.js");
+
+// OPEN THE API TO REQUESTS FROM ANY DOMAIN
+app.use(cors());
+app.use(bodyParser.urlencoded({ extended: true }));
 
 // set session options
 app.use(session({
@@ -32,77 +36,7 @@ app.use(session({
 
 // root route (serves index.html)
 app.get('/', function (req, res) {
-  res.sendFile(__dirname + '/public/views/login.ejs');
-});
-// signup route with placeholder response
-app.get('/signup', function (req, res) {
-  res.send('coming soon');
-});
-
-app.get('/login', function (req, res) {
-  res.render('login');
-});
-
-// user profile page
-app.get('/profile', function (req, res) {
-  // finds user currently logged in
-  req.currentUser(function (err, user) {
-    res.send('Welcome ' + user.email);
-  });
-});
-
-// user submits the signup form
-app.post('/users', function (req, res) {
-
-  // grab user data from params (req.body)
-  var newUser = req.body.user;
-
-  // create new user with secure password
-  User.createSecure(newUser.email, newUser.password, function (err, user) {
-    res.send(user);
-  });
-});
-
-
-// user submits the login form
-app.post('/login', function (req, res) {
-
-  // grab user data from params (req.body)
-  var userData = req.body.user;
-
-  // call authenticate function to check if password user entered is correct
-  User.authenticate(userData.email, userData.password, function (err, user) {
-    // saves user id to session
-    req.login(user);
-
-    // redirect to user profile
-    res.redirect('/profile');
-  });
-});
-
-
-// middleware to manage sessions
-app.use('/', function (req, res, next) {
-  // saves userId in session for logged-in user
-  req.login = function (user) {
-    req.session.userId = user.id;
-  };
-
-  // finds user currently logged in based on `session.userId`
-  req.currentUser = function (callback) {
-    User.findOne({_id: req.session.userId}, function (err, user) {
-      req.user = user;
-      callback(null, user);
-    });
-  };
-
-  // destroy `session.userId` to log out user
-  req.logout = function () {
-    req.session.userId = null;
-    req.user = null;
-  };
-
-  next();
+  res.sendFile(__dirname + '/views/index.html');
 });
 
 
@@ -111,25 +45,32 @@ app.use('/', function (req, res, next) {
 
 // get all posts
 app.get('/api/posts', function (req, res) {
-  // find all posts from the database 
-  Post.find({}, function(err, allPosts){
+  // find all posts from the database and
+  // populate all of the post's author information
+  db.Post.find({}).populate('author').exec(function(err, allPosts){
     if (err){
-      console.log("error: ", err);
+      console.log("! error: ", err);
       res.status(500).send(err);
     } else {
       // send all posts as JSON response
       res.json(allPosts); 
     }
   });
-
 });
 
 // create new post
 app.post('/api/posts', function (req, res) {
   // use params (author and text) from request body
-  // to create a new post
-  var newPost = new Post({
-    author: req.body.author,
+
+  // create the author (we'll assume it doesn't exist yet)
+  var newAuthor = new db.Author({
+    name: req.body.author
+  });
+  newAuthor.save();
+
+  // create a new post
+  var newPost = new db.Post({
+    author: newAuthor._id,
     text: req.body.text
   });
 
@@ -153,7 +94,7 @@ app.get('/api/posts/:id', function(req, res) {
   var targetId = req.params.id
 
   // find item in database matching the id
-  Post.findOne({_id: targetId}, function(err, foundPost){
+  db.Post.findOne({_id: targetId}, function(err, foundPost){
     console.log(foundPost);
     if(err){
       console.log("error: ", err);
@@ -166,6 +107,8 @@ app.get('/api/posts/:id', function(req, res) {
 
 });
 
+
+
 // update single post
 app.put('/api/posts/:id', function(req, res) {
 
@@ -173,7 +116,7 @@ app.put('/api/posts/:id', function(req, res) {
   var targetId = req.params.id;
 
   // find item in `posts` array matching the id
-  Post.findOne({_id: targetId}, function(err, foundPost){
+  db.Post.findOne({_id: targetId}, function(err, foundPost){
     console.log(foundPost); 
 
     if(err){
@@ -208,7 +151,7 @@ app.delete('/api/posts/:id', function(req, res) {
   var targetId = req.params.id;
 
  // remove item from the db that matches the id
-   Post.findOneAndRemove({_id: targetId}, function (err, deletedPost) {
+   db.Post.findOneAndRemove({_id: targetId}, function (err, deletedPost) {
     if (err){
       res.status(500).send(err);
     } else {
@@ -217,6 +160,85 @@ app.delete('/api/posts/:id', function(req, res) {
     }
   });
 });
+
+
+// get all comments for one post
+app.get('/api/posts/:postid/comments', function(req, res){
+  // query the database to find the post indicated by the id
+  db.Post.findOne({_id: req.params.postid}, function(err, post){
+    // send the post's comments as the JSON response
+    res.json(post.comments);
+  });
+});
+
+// add a new comment to a post
+app.post('/api/posts/:postid/comments', function(req, res){
+
+  // query the database to find the post indicated by the id
+  db.Post.findOne({_id: req.params.postid}, function(err, post){
+    // create a new comment record
+    var newComment = new db.Comment({text: req.body.text});
+
+    // add the new comment to the post's list of embedded comments
+    post.comments.push(newComment);
+
+    // send the new comment as the JSON response
+    res.json(newComment);
+  });
+});
+
+// get all authors
+app.get('/api/authors', function(req, res){
+  // query the database to find all authors
+  db.Author.find({}, function(err, authors){
+    // send the authors as the JSON response
+    res.json(authors);
+  });
+}); 
+
+// create a new author
+app.post('/api/authors', function(req, res){
+  // make a new author, using the name from the request body
+  var newAuthor = new db.Author({name: req.body.name});
+
+  // save the new author
+  newAuthor.save(function(err, author){
+    // send the new author as the JSON response
+    res.json(author);
+  });
+});
+
+
+// assign a specific author to a specific post
+
+app.put('/api/posts/:postid/authors/:authorid', function(req, res){
+  // query the database to find the author 
+  // (to make sure the id actually matches an author)
+  db.Author.find({_id: req.params.authorid}, function(err, author){
+    if (err){
+      console.log("error: ", err);
+      res.status(500).send("no author with id "+req.params.authorid);
+    } else {
+      // query the database to find the post
+      db.Post.find({_id: req.params.postid}, function(err, post){
+
+        if (err){  
+          res.status(500).send("no post with id"+req.params.postid);
+        } else {  // we found a post!
+          // update the post to reference the author
+          post.author = author._id;
+
+          // save the updated post
+          post.save(function(err, savedPost){
+            // send the updated post as the JSON response
+            res.json(savedPost);
+          });
+        }
+      });
+    }
+  });
+});
+
 //**POSTS END**
 
 // listen on port 3000

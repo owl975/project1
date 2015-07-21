@@ -1,22 +1,21 @@
 {
-  "name": "simple_login",
+  "name": "project1",
   "version": "1.0.0",
   "description": "",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
   },
-  "scripts": {
-  "start": "node server.js"
-  }
   "author": "",
   "license": "ISC",
   "dependencies": {
     "bcrypt": "^0.8.3",
     "body-parser": "^1.13.2",
-    "ejs": "^2.3.3",
+    "cors": "^2.7.1",
     "express": "^4.13.1",
     "express-session": "^1.11.3",
-    "mongoose": "^4.0.7"
+    "mongoose": "^4.0.7",
+    "underscore": "^1.8.3"
   }
 }
